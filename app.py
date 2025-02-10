@@ -29,8 +29,6 @@ load_dotenv()
 GLPI_URL = os.getenv("GLPI_URL")
 USER_TOKEN = os.getenv("USER_TOKEN")
 APP_TOKEN = os.getenv("APP_TOKEN")
-PATH_EXCEL_ACTIVOS = os.getenv("PATH_EXCEL_ACTIVOS")
-PATH_EXCEL_CONSUMIBLES = os.getenv("PATH_EXCEL_CONSUMIBLES")
 PATH_EXCEL_NETWORK = os.getenv("PATH_EXCEL_NETWORK")
 IP_CAM_URL = os.getenv("IP_CAM_URL")
 
@@ -41,7 +39,7 @@ class NetworkEquipment:
     def __init__(self, root):
         self.crear_archivo_excel_con_hojas(ruta_excel, ["NetworkEquipment", "NetworkEquipment new"])
         self.root = root
-        self.root.title("GLPI Asset Automator")
+        self.root.title("GLPI Network Equipments Automator")
         self.root.geometry("800x600")
         self.style = ttk.Style()
         self.style.theme_use("clam")  # Puedes cambiar el tema a "clam", "alt", "default", "classic"
@@ -93,7 +91,7 @@ class NetworkEquipment:
         self.root.config(menu=menubar)
 
         file_menu = tk.Menu(menubar, tearoff=0)
-        menubar.add_cascade(label="Archivo", menu=file_menu)
+        menubar.add_cascade(label="Opciones", menu=file_menu)
         file_menu.add_command(label="Salir", command=self.root.quit)
 
         #help_menu = tk.Menu(menubar, tearoff=0)
