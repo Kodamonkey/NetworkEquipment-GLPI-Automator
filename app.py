@@ -38,13 +38,16 @@ ruta_excel = PATH_EXCEL_NETWORK
 class NetworkEquipment: 
     def __init__(self, root):
         self.crear_archivo_excel_con_hojas(ruta_excel, ["NetworkEquipment", "NetworkEquipment new"])
+        self.lock_excel = threading.Lock()
+        self.lock_glpi = threading.Lock()
         self.root = root
         self.root.title("GLPI Network Equipments Automator")
-        self.root.geometry("800x600")
+        self.root.geometry("600x600")
         self.style = ttk.Style()
         self.style.theme_use("clam")  # Puedes cambiar el tema a "clam", "alt", "default", "classic"
         self.configure_styles()
         self.create_widgets()
+        self.obtener_todos_los_network_equipment_glpi_a_excel(self.obtener_token_sesion())
         #self.agregar_equipo_a_GLPI(self.obtener_token_sesion(), '''NS:TEST\nIP:10.100.1.1\nSN:111111\nMODEL: TEST MODEL''')
         #self.agregar_equipo_a_excel(ruta_excel, '''NS:TEST\nIP:10.100.1.1\nSN:111111\nMODEL: TEST MODEL''')
         #self.agregar_equipo_desde_excel_a_glpi(self.obtener_token_sesion(), ruta_excel)
@@ -114,15 +117,16 @@ class NetworkEquipment:
         # Excel
         ttk.Label(frames["Registros Offline (Excel)"], text="Registro de Network equipments a Excel", style="Header.TLabel").grid(row=0, column=0, pady=10)
         tk.Button(frames["Registros Offline (Excel)"], text="Registrar Network equipment a Excel", command=self.registro_offline).grid(row=1, column=0, padx=10, pady=5)
+        tk.Button(frames["Registros Offline (Excel)"], text="Registrar multiples Network equipment a Excel", command=self.multiples_registros_offline).grid(row=2, column=0, padx=10, pady=5)
 
         # GLPI
         ttk.Label(frames["Registros Online (GLPI)"], text="Registro de Network equipments a GLPI", style="Header.TLabel").grid(row=0, column=0, pady=10)
         tk.Button(frames["Registros Online (GLPI)"], text="Registrar Network equipment a GLPI", command=self.registro_online).grid(row=1, column=0, padx=10, pady=5)
+        tk.Button(frames["Registros Online (GLPI)"], text="Registrar multiples Network equipment a GLPI", command=self.multiples_registros_online).grid(row=2, column=0, padx=10, pady=5)
 
         # Excel a GLPI
         ttk.Label(frames["Excel -> GLPI (Sincronizacion Asincrona)"], text="Excel -> GLPI", style="Header.TLabel").grid(row=0, column=0, pady=10)
         tk.Button(frames["Excel -> GLPI (Sincronizacion Asincrona)"], text="Sincronizar Excel con GLPI", command=self.sincronizacion_asincrona).grid(row=1, column=0, padx=10, pady=5)
-
 
     def center_widgets(self, frame):
         # Configurar la columna 0 del frame para centrar elementos
@@ -168,7 +172,8 @@ class NetworkEquipment:
         return ws, excel_headers
 
     # --- Configuraciones ---
-    def escanear_qr_con_celular(self):
+
+    '''def escanear_qr_con_celular(self):
         try:
             # Mostrar cuadro de diálogo de confirmación
             respuesta = messagebox.askokcancel("Confirmación", "¿Desea activar la cámara para escanear el QR?")
@@ -259,14 +264,20 @@ class NetworkEquipment:
             cv2.destroyAllWindows()
 
     def es_codigo_valido(self, qr_data):
+        # Normalizar el texto eliminando espacios extra y líneas vacías
+        qr_data_limpio = "\n".join([line.strip() for line in qr_data.splitlines() if line.strip()])
+        
+        print("Texto procesado antes de la validación:")
+        print(repr(qr_data_limpio))  # Muestra caracteres invisibles como '\n'
+        
         # Expresión regular corregida
-        patron_valido = r'^NS:[A-Z0-9\-]+\s*\nIP:\b\d{1,3}(\.\d{1,3}){3}\b\s*\nSN:[A-Z0-9]+\s*\nMODEL:[\w\s]+$'
+        patron_valido = r'^NS:[A-Za-z0-9\-.]+\nIP:\d{1,3}(\.\d{1,3}){3}\nSN:[A-Za-z0-9]+\nMODEL:[A-Za-z0-9\s]+$'
         
         # Validar el código QR contra el patrón
-        if re.match(patron_valido, qr_data.strip(), re.MULTILINE):  
+        if re.match(patron_valido, qr_data_limpio, re.MULTILINE):
             return "valido"
         else:
-            return "invalido"
+            return "invalido"'''
 
     # --- GLPI API ---
 
@@ -394,10 +405,10 @@ class NetworkEquipment:
                 for net in networks:
                     if net.get("name") == network:
                         print(f"Network encontrado: {json.dumps(net, indent=4)}")
-                        print(net.get("id"))
+                        #print(net.get("id"))
                         return net.get("id")  # Retornar el ID del network encontrado
  
-                print("Network IP no encontrado en GLPI.")
+                print(f"Network IP {network} no encontrado en GLPI.")
                 return None
 
             else:
@@ -563,20 +574,36 @@ class NetworkEquipment:
     # --- Metodo ---
 
     def registro_offline(self):
-        qr_data = self.escanear_qr_con_celular()
+        qr_data = scanner.escanear_qr_con_celular_firstDetection()
 
         # Si se escanea correctamente, agregamos el equipo al Excel
         if qr_data:
             self.agregar_equipo_a_excel(ruta_excel, qr_data)
 
+    def multiples_registros_offline(self):
+        qr_data = scanner.escanear_qr_con_celular()
+        #print(qr_data)
+        # Si se escanea correctamente, agregamos el equipo al Excel
+        if qr_data:
+            self.agregar_equipos_a_excel(qr_data)
+
     def registro_online(self): 
-        qr_data = self.escanear_qr_con_celular()
+        qr_data = scanner.escanear_qr_con_celular_firstDetection()
         #print(qr_data)
 
         session_token = self.obtener_token_sesion()
         # Si se escanea correctamente, agregamos el equipo al Excel
         if qr_data:
             self.agregar_equipo_a_GLPI(session_token, qr_data)
+
+    def multiples_registros_online(self):
+        qr_data = scanner.escanear_qr_con_celular()
+        #print(qr_data)
+
+        session_token = self.obtener_token_sesion()
+        # Si se escanea correctamente, agregamos el equipo al Excel
+        if qr_data:
+            self.agregar_multiples_equipos_a_GLPI(session_token, qr_data)
 
     def sincronizacion_asincrona(self):
         session_token = self.obtener_token_sesion()
@@ -676,139 +703,203 @@ class NetworkEquipment:
             messagebox.showwarning("Advertencia", "El Excel de equipos nuevos está vacío después de la eliminación.")
 
     def agregar_equipo_a_excel(self, ruta_excel, qr_data):
-        # Procesar los datos del QR
-        qr_info = self.procesar_qr_data(qr_data)
-        
-        # Abrir el archivo Excel
-        wb = load_workbook(ruta_excel)
-        ws = wb["NetworkEquipment new"]
+        with self.lock_excel:
+            # Procesar los datos del QR
+            qr_info = self.procesar_qr_data(qr_data)
+            
+            # Abrir el archivo Excel
+            wb = load_workbook(ruta_excel)
+            ws = wb["NetworkEquipment new"]
 
-        # Verificar si el equipo ya está en el Excel por 'name' o 'serial'
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            if row[3] == qr_info.get("name") or row[5] == qr_info.get("serial"):
-                messagebox.showinfo("Información", "El equipo ya está registrado en el Excel. No se agregará.")
-                return  # Evita registros duplicados
+            # Verificar si el equipo ya está en el Excel por 'name' o 'serial'
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if row[3] == qr_info.get("name") or row[5] == qr_info.get("serial"):
+                    messagebox.showinfo("Información", "El equipo ya está registrado en el Excel. No se agregará.")
+                    return  # Evita registros duplicados
 
-        # Crear una nueva fila con los datos del QR
-        nueva_fila = [
-            None,  # id
-            None,  # entities_id
-            None,  # is_recursive
-            qr_info.get("name"),  # name (NS del QR)
-            None,  # ram
-            qr_info.get("serial"),  # serial (SN del QR)
-            None,  # otherserial
-            None,  # contact
-            None,  # contact_num
-            None,  # users_id_tech
-            None,  # groups_id_tech
-            None,  # date_mod
-            None,  # comment
-            None,  # locations_id
-            qr_info.get("ip"),  # networks
-            qr_info.get("networks_id", None),  # networks_id (si existe)
-            None,  # networkequipmenttypes_id
-            qr_info.get("model"),  # networkequipmentmodels
-            qr_info.get("networkequipmentmodels_id", None),  # networkequipmentmodels_id (si existe)
-            None,  # manufacturers_id
-            None,  # is_deleted
-            None,  # is_template
-            None,  # template_name
-            None,  # users_id
-            None,  # groups_id
-            None,  # states_id
-            None,  # ticket_tco
-            None,  # is_dynamic
-            None,  # uuid
-            None,  # date_creation
-            None,  # autoupdatesystems_id
-            None,  # sysdescr
-            None,  # cpu
-            None,  # uptime
-            None,  # last_inventory_update
-            None,  # snmpcredentials_id
-            None   # links
-        ]
+            # Crear una nueva fila con los datos del QR
+            nueva_fila = [
+                None,  # id
+                None,  # entities_id
+                None,  # is_recursive
+                qr_info.get("name"),  # name (NS del QR)
+                None,  # ram
+                qr_info.get("serial"),  # serial (SN del QR)
+                None,  # otherserial
+                None,  # contact
+                None,  # contact_num
+                None,  # users_id_tech
+                None,  # groups_id_tech
+                None,  # date_mod
+                None,  # comment
+                None,  # locations_id
+                qr_info.get("ip"),  # networks
+                qr_info.get("networks_id", None),  # networks_id (si existe)
+                None,  # networkequipmenttypes_id
+                qr_info.get("model"),  # networkequipmentmodels
+                qr_info.get("networkequipmentmodels_id", None),  # networkequipmentmodels_id (si existe)
+                None,  # manufacturers_id
+                None,  # is_deleted
+                None,  # is_template
+                None,  # template_name
+                None,  # users_id
+                None,  # groups_id
+                None,  # states_id
+                None,  # ticket_tco
+                None,  # is_dynamic
+                None,  # uuid
+                None,  # date_creation
+                None,  # autoupdatesystems_id
+                None,  # sysdescr
+                None,  # cpu
+                None,  # uptime
+                None,  # last_inventory_update
+                None,  # snmpcredentials_id
+                None   # links
+            ]
 
-        # Añadir la nueva fila y guardar el archivo
-        ws.append(nueva_fila)
-        wb.save(ruta_excel)
-        messagebox.showinfo("Información", "Equipo agregado correctamente.")
+            # Añadir la nueva fila y guardar el archivo
+            ws.append(nueva_fila)
+            wb.save(ruta_excel)
+            messagebox.showinfo("Información", "Equipo agregado correctamente.")
 
+    def agregar_equipos_a_excel(self, lista_qr_data):
+        """
+        Agrega múltiples equipos escaneados a un archivo Excel, evitando duplicados.
+        """
+        try:
+            # Obtener el bloqueo antes de acceder al archivo
+            with self.lock_excel:
+                # Cargar el archivo Excel
+                wb = load_workbook(ruta_excel)
+                ws = wb["NetworkEquipment new"]
 
-     # --- Metodo: REGISTRO OFLINE ---
+                # Obtener valores actuales para evitar duplicados
+                equipos_registrados = set()
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    if row[3]:  # 'name' en la columna correspondiente
+                        equipos_registrados.add(row[3])
+                    if row[5]:  # 'serial' en la columna correspondiente
+                        equipos_registrados.add(row[5])
+
+                # Procesar y agregar cada QR
+                nuevos_equipos = 0
+                for qr_data in lista_qr_data:
+                    qr_info = self.procesar_qr_data(qr_data)
+                    name = qr_info.get("name")
+                    serial = qr_info.get("serial")
+
+                    # Verificar duplicados
+                    if name in equipos_registrados or serial in equipos_registrados:
+                        messagebox.showinfo("Información", f"El equipo {name} ({serial}) ya está registrado. No se agregará.")
+                        continue
+
+                    # Agregar equipo
+                    nueva_fila = [
+                        None, None, None, name, None, serial, None, None, None, None, None, None, None, None,
+                        qr_info.get("ip"), qr_info.get("networks_id", None), None, qr_info.get("model"),
+                        qr_info.get("networkequipmentmodels_id", None), None, None, None, None, None, None,
+                        None, None, None, None, None, None, None, None, None, None
+                    ]
+                    ws.append(nueva_fila)
+                    equipos_registrados.add(name)
+                    equipos_registrados.add(serial)
+                    nuevos_equipos += 1
+
+                # Guardar cambios
+                wb.save(ruta_excel)
+                messagebox.showinfo("Información", f"Se agregaron {nuevos_equipos} equipos nuevos correctamente.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al actualizar Excel: {str(e)}")
 
     def agregar_equipo_a_GLPI(self, session_token, qr_data):
         """
         Registra un nuevo equipo de red en GLPI a partir de los datos extraídos del QR.
         """
-        headers = {
-            "Content-Type": "application/json",
-            "Session-Token": session_token,
-            "App-Token": APP_TOKEN
-        }
+        with self.lock_glpi:
+            headers = {
+                "Content-Type": "application/json",
+                "Session-Token": session_token,
+                "App-Token": APP_TOKEN
+            }
 
-        # Procesar los datos del QR
-        qr_info = self.procesar_qr_data(qr_data)
+            # Procesar los datos del QR
+            qr_info = self.procesar_qr_data(qr_data)
 
-        name= qr_info.get("name")
-        serial = qr_info.get("serial")
-        ip = str(qr_info.get("ip"))
-        networks_id = self.obtener_id_de_networks_id(session_token, ip)
-
-        if not networks_id:
-            messagebox.showinfo("Información", "El IP no existe en GLPI. Se procedera a crear en GLPI")
-            self.crear_network_id_glpi(session_token, ip)
+            name= qr_info.get("name")
+            serial = qr_info.get("serial")
+            ip = str(qr_info.get("ip"))
             networks_id = self.obtener_id_de_networks_id(session_token, ip)
 
-        networkequipmentmodel =  qr_info.get("model")
-        networkequipmentmodels_id = self.obtener_id_de_networkequipmentmodels(session_token, networkequipmentmodel)
+            if not networks_id:
+                messagebox.showinfo("Información", f"El IP {ip} no existe en GLPI. Se procedera a crear en GLPI")
+                self.crear_network_id_glpi(session_token, ip)
+                networks_id = self.obtener_id_de_networks_id(session_token, ip)
 
-        if not networkequipmentmodels_id:    
-            messagebox.showinfo("Información", "El modelo no existe en GLPI. Se procedera a agregar")
-            self.crear_networkequipmentmodel_glpi(session_token, networkequipmentmodel)
+            networkequipmentmodel =  qr_info.get("model")
             networkequipmentmodels_id = self.obtener_id_de_networkequipmentmodels(session_token, networkequipmentmodel)
-        
-        # Estructura del equipo de red a registrar en GLPI
-        nuevo_equipo = {
-            "input": [
-                {
-                    "name": name,  # Nombre del equipo
-                    "serial": serial,  # Número de serie
-                    "networks_id": networks_id,  # Dirección IP
-                    "networkequipmentmodels_id": networkequipmentmodels_id,  # ID del modelo de equipo de red
-                    "comment": qr_info.get("comment", ""),  # Comentario opcional
-                    "locations_id": qr_info.get("location_id", None),  # Ubicación (si aplica)
-                    "manufacturers_id": qr_info.get("manufacturer_id", None),  # Fabricante (si aplica)
-                    "users_id": qr_info.get("user_id", None)  # Usuario asignado (si aplica)
-                }
-            ]
-        }
 
-        try:
-            existencia = self.verificar_equipo_existente_glpi(session_token, qr_info)
+            if not networkequipmentmodels_id:    
+                messagebox.showinfo("Información", f"El modelo{networkequipmentmodel} no existe en GLPI. Se procedera a agregar")
+                self.crear_networkequipmentmodel_glpi(session_token, networkequipmentmodel)
+                networkequipmentmodels_id = self.obtener_id_de_networkequipmentmodels(session_token, networkequipmentmodel)
+            
+            # Estructura del equipo de red a registrar en GLPI
+            nuevo_equipo = {
+                "input": [
+                    {
+                        "name": name,  # Nombre del equipo
+                        "serial": serial,  # Número de serie
+                        "networks_id": networks_id,  # Dirección IP
+                        "networkequipmentmodels_id": networkequipmentmodels_id,  # ID del modelo de equipo de red
+                        #"comment": qr_info.get("comment", ""),  # Comentario opcional
+                        #"locations_id": qr_info.get("locations_id", ""),  # Ubicación (si aplica)
+                        #"manufacturers_id": qr_info.get("manufacturers_id", ""),  # Fabricante (si aplica)
+                        #"users_id": qr_info.get("users_id", "")  # Usuario asignado (si aplica)
+                    }
+                ]
+            }
 
-            if not existencia:
-                # Hacer la solicitud POST a la API de GLPI para registrar el nuevo equipo
-                response = requests.post(f'{GLPI_URL}/NetworkEquipment', headers=headers, json=nuevo_equipo, verify=False)
+            try:
+                existencia = self.verificar_equipo_existente_glpi(session_token, qr_info)
 
-                # Verificar si la respuesta fue exitosa (código 200 o 201)
-                if response.status_code in [200, 201]:
-                    created_equipment = response.json()
-                    print(f"Equipo de red registrado en GLPI: {json.dumps(created_equipment, indent=4)}")
-                    messagebox.showinfo("Información", "Equipo de red registrado en GLPI")
-                    #self.agregar_equipo_a_excel(ruta_excel, qr_data)
-                    return created_equipment
-                else:
-                    print(f"Error al registrar el equipo en GLPI: {response.status_code} - {response.text}")
+                if not existencia:
+                    # Hacer la solicitud POST a la API de GLPI para registrar el nuevo equipo
+                    response = requests.post(f'{GLPI_URL}/NetworkEquipment', headers=headers, json=nuevo_equipo, verify=False)
+
+                    # Verificar si la respuesta fue exitosa (código 200 o 201)
+                    if response.status_code in [200, 201]:
+                        created_equipment = response.json()
+                        print(f"Equipo de red registrado en GLPI: {json.dumps(created_equipment, indent=4)}")
+                        messagebox.showinfo("Información", f"Equipo de red registrado {created_equipment["name"]} en GLPI")
+                        #self.agregar_equipo_a_excel(ruta_excel, qr_data)
+                        return created_equipment
+                    else:
+                        print(f"Error al registrar el equipo en GLPI: {response.status_code} - {response.text}")
+                        return None
+                else: 
+                    messagebox.showinfo("Información", f"El equipo con nombre {name} y serial {serial} ya está registrado en GLPI. No se agregara...")
                     return None
-            else: 
-                messagebox.showerror("Error", f"El equipo con nombre {name} y serial {serial} ya está registrado en GLPI.")
+
+            except requests.exceptions.RequestException as e:
+                print(f"Error al conectar con la API de GLPI: {e}")
                 return None
 
-        except requests.exceptions.RequestException as e:
-            print(f"Error al conectar con la API de GLPI: {e}")
-            return None
+    def agregar_multiples_equipos_a_GLPI(self, session_token, lista_qr_data):
+        """
+        Registra múltiples equipos de red en GLPI a partir de los datos extraídos de una lista de QR.
+        """
+        for qr_data in lista_qr_data:
+            try:
+                # Llamar a la función agregar_equipo_a_GLPI para cada equipo
+                created_equipment = self.agregar_equipo_a_GLPI(session_token, qr_data)
+
+                if created_equipment:
+                    print(f"Equipo registrado correctamente: {created_equipment['input'][0]['name']}")
+                else:
+                    print(f"Error al registrar el equipo con QR: {qr_data}")
+            except Exception as e:
+                print(f"Error procesando el QR {qr_data}: {str(e)}")
 
     def procesar_qr_data(self, qr_data):
         # Separar los datos por líneas
@@ -838,7 +929,6 @@ class NetworkEquipment:
             "Session-Token": session_token,
             "App-Token": APP_TOKEN
         }
-        print("NAME VERIF.", qr_info.get("name"))
         # Parámetros para búsqueda por nombre o serial
         params = {
             "searchText": qr_info.get("name"),  # Búsqueda por nombre
@@ -871,8 +961,245 @@ class NetworkEquipment:
             print(f"Error al conectar con la API de GLPI: {e}")
             return False
 
+    def obtener_todos_los_network_equipment_glpi_a_excel(self, session_token):
+        """
+        Obtiene todos los equipos de red en GLPI y los guarda en la hoja "NetworkEquipment" del archivo Excel.
+        """
+        headers = {
+            "Content-Type": "application/json",
+            "Session-Token": session_token,
+            "App-Token": APP_TOKEN
+        }
+        endpoint = f"{GLPI_URL}/NetworkEquipment"
+        params = {"range": "0-999"}  # Ajustar el rango según necesidad
+
+        response = requests.get(endpoint, headers=headers, params=params, verify=False)
+        
+        if response.status_code == 200:
+            network_equipment_data = response.json()
+            
+            # Verificar si la respuesta es una lista o un diccionario
+            equipment_list = network_equipment_data if isinstance(network_equipment_data, list) else network_equipment_data.get('data', [])
+            
+            if not equipment_list:
+                print("No se encontraron equipos de red.")
+                return
+            
+            # Definir las columnas requeridas
+            columnas = [
+                "id", "entities_id", "is_recursive", "name", "ram", "serial", "otherserial", "contact", "contact_num", 
+                "users_id_tech", "groups_id_tech", "date_mod", "comment", "locations_id", "networks_id", 
+                "networkequipmenttypes_id", "networkequipmentmodels_id", "manufacturers_id", "is_deleted", 
+                "is_template", "template_name", "users_id", "groups_id", "states_id", "ticket_tco", "is_dynamic", 
+                "uuid", "date_creation", "autoupdatesystems_id", "sysdescr", "cpu", "uptime", "last_inventory_update", 
+                "snmpcredentials_id", "links"
+            ]
+            
+            # Convertir a DataFrame asegurando que solo se extraigan las columnas requeridas
+            df = pd.DataFrame(equipment_list)
+            df = df[columnas]  # Seleccionar solo las columnas especificadas
+            
+            # Verificar si el archivo ya existe
+            if os.path.exists(ruta_excel):
+                with pd.ExcelWriter(ruta_excel, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                    df.to_excel(writer, sheet_name="NetworkEquipment", index=False)
+            else:
+                with pd.ExcelWriter(ruta_excel, engine='openpyxl') as writer:
+                    df.to_excel(writer, sheet_name="NetworkEquipment", index=False)
+            
+            print(f"Equipos de red guardados en la hoja 'NetworkEquipment' del archivo {ruta_excel}")
+        else:
+            print(f"Error: No se pudieron obtener los equipos de red. Código {response.status_code}")
+
+class QRScanner:
+    def __init__(self):
+        self.qr_escaneados = set()  # Almacena los QR únicos escaneados
+        self.lock = threading.Lock()  # Lock para controlar el acceso a la cámara
+
+    def es_codigo_valido(self, qr_data):
+        # Normalizar el texto eliminando espacios extra y líneas vacías
+        qr_data_limpio = "\n".join([line.strip() for line in qr_data.splitlines() if line.strip()])
+        
+        print("Texto procesado antes de la validación:")
+        print(repr(qr_data_limpio))  # Muestra caracteres invisibles como '\n'
+        
+        # Expresión regular corregida
+        patron_valido = r'^NS:[A-Za-z0-9\-.]+\nIP:\d{1,3}(\.\d{1,3}){3}\nSN:[A-Za-z0-9]+\nMODEL:[A-Za-z0-9\s]+$'
+        
+        # Validar el código QR contra el patrón
+        if re.match(patron_valido, qr_data_limpio, re.MULTILINE):
+            return "valido"
+        else:
+            return "invalido"
+
+    def escanear_qr_con_celular(self):
+        """Escanea múltiples códigos QR y evita duplicados. Presiona 'q' para salir."""
+        try:
+            respuesta = messagebox.askokcancel("Confirmación", "¿Desea activar la cámara para escanear el QR?")
+            if not respuesta:
+                return None
+
+            messagebox.showinfo("Información", "Escaneando con la cámara del celular. Presiona 'q' para salir.")
+
+            result_queue = queue.Queue()
+
+            def run_capture(result_queue):
+                with self.lock:
+                    cap = cv2.VideoCapture(IP_CAM_URL)
+                    if not cap.isOpened():
+                        result_queue.put(("error", "No se pudo acceder a la cámara del celular."))
+                        return
+                    
+                    while True:
+                        ret, frame = cap.read()
+                        if not ret:
+                            result_queue.put(("error", "Error al obtener el cuadro de la cámara."))
+                            break
+
+                        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                        qr_codes = decode(gray_frame)
+
+                        for qr in qr_codes:
+                            qr_data = qr.data.decode('utf-8').strip()
+
+                            if qr_data in self.qr_escaneados:
+                                continue  # Si ya se escaneó, lo ignora
+
+                            if self.es_codigo_valido(qr_data) == "valido":
+                                self.qr_escaneados.add(qr_data)
+                                result_queue.put(("info", f"QR válido detectado: \n{qr_data}"))
+                                result_queue.put(("data", qr_data))
+
+                        cv2.imshow("Escaneando QR con celular", frame)
+
+                        if cv2.waitKey(1) & 0xFF == ord('q'):
+                            result_queue.put(("close", None))
+                            break
+
+                        if cv2.getWindowProperty("Escaneando QR con celular", cv2.WND_PROP_VISIBLE) < 1:
+                            result_queue.put(("close", None))
+                            break
+
+                    cap.release()
+                    cv2.destroyAllWindows()
+
+            capture_thread = threading.Thread(target=run_capture, args=(result_queue,))
+            capture_thread.start()
+
+            while True:
+                try:
+                    msg_type, msg_content = result_queue.get(timeout=1)
+                    if msg_type == "info":
+                        messagebox.showinfo("Información", msg_content)
+                    elif msg_type == "error":
+                        messagebox.showerror("Error", msg_content)
+                        return None
+                    elif msg_type == "data":
+                        print(f"QR almacenado: {msg_content}")
+                    elif msg_type == "close":
+                        print("Escaneo finalizado.")
+                        return list(self.qr_escaneados)  # Devuelve todos los QR escaneados
+                except queue.Empty:
+                    continue
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Se produjo un error inesperado: {str(e)}")
+            cv2.destroyAllWindows()
+
+    def escanear_qr_con_celular_firstDetection(self):
+        try:
+            # Mostrar cuadro de diálogo de confirmación
+            respuesta = messagebox.askokcancel("Confirmación", "¿Desea activar la cámara para escanear el QR?")
+            if not respuesta:
+                return None
+
+            # Mostrar información adicional después de la confirmación
+            messagebox.showinfo("Información", "Usando la cámara del celular. Presiona 'q' para salir.")
+
+            def run_capture(result_queue):
+                ip_cam_url = IP_CAM_URL  # Cambiar por la URL de la cámara IP
+                camera_open = True
+
+                try:
+                    with self.lock:  # Asegura que solo una función pueda acceder a la cámara a la vez
+                        cap = cv2.VideoCapture(ip_cam_url)
+                        if not cap.isOpened():
+                            result_queue.put(("error", "No se pudo acceder a la cámara del celular. Reintentalo..."))
+                            cap.release()
+                            cv2.destroyAllWindows()
+                            return
+
+                        while camera_open:
+                            ret, frame = cap.read()
+                            if not ret:
+                                result_queue.put(("error", "Error al obtener el cuadro de la cámara. Reintentando conexión..."))
+                                break  # Sale del bucle interno para reintentar la conexión
+
+                            gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                            qr_codes = decode(gray_frame)
+
+                            for qr in qr_codes:
+                                qr_data = qr.data.decode('utf-8')
+                                flag = self.es_codigo_valido(qr_data)
+                                if flag == "valido":
+                                    result_queue.put(("info", f"Código QR {flag}: \n{qr_data}"))
+                                    result_queue.put(("data", qr_data))
+                                    camera_open = False
+                                    cap.release()
+                                    cv2.destroyAllWindows()
+                                    return
+                                elif flag == "invalido":
+                                    continue
+
+                            cv2.imshow("Escaneando QR con celular", frame)
+
+                            if cv2.waitKey(1) & 0xFF == ord('q'):
+                                camera_open = False
+                                cap.release()
+                                cv2.destroyAllWindows()
+                                result_queue.put(("close", None))
+                                return
+
+                            # Verificar si la ventana fue cerrada
+                            if cv2.getWindowProperty("Escaneando QR con celular", cv2.WND_PROP_VISIBLE) < 1:
+                                camera_open = False
+                                cap.release()
+                                cv2.destroyAllWindows()
+                                result_queue.put(("close", None))
+                                return
+
+                        cap.release()
+                        cv2.destroyAllWindows()
+                except Exception as e:
+                    result_queue.put(("error", f"Se produjo un error inesperado: {str(e)}"))
+                    cap.release()
+                    cv2.destroyAllWindows()
+
+            result_queue = queue.Queue()
+            capture_thread = threading.Thread(target=run_capture, args=(result_queue,))
+            capture_thread.start()
+
+            while True:
+                try:
+                    msg_type, msg_content = result_queue.get(timeout=1)
+                    if msg_type == "info":
+                        messagebox.showinfo("Información", msg_content)
+                    elif msg_type == "error":
+                        messagebox.showerror("Error", msg_content)
+                        return None
+                    elif msg_type == "data":
+                        return msg_content
+                    elif msg_type == "close":
+                        return None
+                except queue.Empty:
+                    continue
+        except Exception as e:
+            result_queue.put(("error", f"Se produjo un error inesperado: {str(e)}"))
+            cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     root = tk.Tk()
+    scanner = QRScanner()
     app = NetworkEquipment(root)
     root.mainloop()
