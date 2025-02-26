@@ -47,7 +47,13 @@ class NetworkEquipment:
         self.style.theme_use("clam")  # Puedes cambiar el tema a "clam", "alt", "default", "classic"
         self.configure_styles()
         self.create_widgets()
-        self.obtener_todos_los_network_equipment_glpi_a_excel(self.obtener_token_sesion())
+        try:
+            session_token = self.obtener_token_sesion()
+            if session_token:
+                self.obtener_todos_los_network_equipment_glpi_a_excel(session_token)
+        except Exception as e:
+            print(f"Error al conectar con GLPI: {str(e)}")
+            messagebox.showerror("Error", f"No se pudo conectar con GLPI, NO PODRAS REALIZAR SINCRONIZACIONES AUN: {str(e)}")
 
     def salir(self):
         root.destroy()  
@@ -167,11 +173,18 @@ class NetworkEquipment:
             "Authorization": f"user_token {USER_TOKEN}",
             "App-Token": APP_TOKEN,
         }
-        response = requests.get(f"{GLPI_URL}/initSession", headers=headers, verify=False)
-        if response.status_code == 200:
-            return response.json().get("session_token")
-        else:
-            messagebox.showerror("Error", f"Error al iniciar sesión: {response.status_code}")
+        try:
+            response = requests.get(f"{GLPI_URL}/initSession", headers=headers, verify=False)
+            if response.status_code == 200:
+                print("Sesión iniciada correctamente.")
+                return response.json().get("session_token")
+            else:
+                print(f"Error al iniciar sesión: {response.status_code}")
+                messagebox.showerror("Error", f"Error al iniciar sesión: {response.status_code}")
+                return None
+        except requests.exceptions.RequestException as e:
+            print(f"Error al conectar con la API de GLPI: {e}")
+            messagebox.showerror("Error", f"Error al conectar con la API de GLPI: {e}")
             return None
     
     def obtener_todos_los_network_equipment_glpi(self, session_token):
@@ -487,9 +500,14 @@ class NetworkEquipment:
             self.agregar_multiples_equipos_a_GLPI(session_token, qr_data)
 
     def sincronizacion_asincrona(self):
+        print("Iniciando sincronización asincrónica...")
         session_token = self.obtener_token_sesion()
         if session_token:
+            print("Token de sesión obtenido correctamente.")
             self.agregar_equipo_desde_excel_a_glpi(session_token, ruta_excel)
+        else:
+            print("No se pudo obtener el token de sesión de GLPI.")
+            messagebox.showerror("Error", "No se pudo obtener el token de sesión de GLPI.")
 
     def agregar_equipo_desde_excel_a_glpi(self, session_token, ruta_excel): 
         """
