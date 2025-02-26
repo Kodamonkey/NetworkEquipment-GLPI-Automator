@@ -48,18 +48,6 @@ class NetworkEquipment:
         self.configure_styles()
         self.create_widgets()
         self.obtener_todos_los_network_equipment_glpi_a_excel(self.obtener_token_sesion())
-        #self.agregar_equipo_a_GLPI(self.obtener_token_sesion(), '''NS:TEST\nIP:10.100.1.1\nSN:111111\nMODEL: TEST MODEL''')
-        #self.agregar_equipo_a_excel(ruta_excel, '''NS:TEST\nIP:10.100.1.1\nSN:111111\nMODEL: TEST MODEL''')
-        #self.agregar_equipo_desde_excel_a_glpi(self.obtener_token_sesion(), ruta_excel)
-        #self.crear_networkequipmentmodel_glpi(self.obtener_token_sesion(), "Model Test")
-        #self.obtener_todos_los_networkequipmentmodels_id_glpi(self.obtener_token_sesion())
-        #self.crear_network_id_glpi(self.obtener_token_sesion(), "10.100.1.1", "prueba 1")
-        #self.obtener_networks_id_glpi(self.obtener_token_sesion())
-        #self.obtener_todos_los_networks_id_glpi(self.obtener_token_sesion())
-        #self.obtener_id_de_networks_id(self.obtener_token_sesion(), "10.195.1.6")
-        #self.obtener_todos_los_network_equipment_glpi(self.obtener_token_sesion())
-        #self.obtener_network_equipment_glpi(self.obtener_token_sesion(), 514)
-        #self.escanear_qr_con_celular()
 
     def salir(self):
         root.destroy()  
@@ -172,113 +160,6 @@ class NetworkEquipment:
         return ws, excel_headers
 
     # --- Configuraciones ---
-
-    '''def escanear_qr_con_celular(self):
-        try:
-            # Mostrar cuadro de diálogo de confirmación
-            respuesta = messagebox.askokcancel("Confirmación", "¿Desea activar la cámara para escanear el QR?")
-            if not respuesta:
-                return None
-
-            # Mostrar información adicional después de la confirmación
-            messagebox.showinfo("Información", "Usando la cámara del celular. Presiona 'q' para salir.")
-
-            def run_capture(result_queue):
-                ip_cam_url = IP_CAM_URL  # Cambiar por la URL de la cámara IP
-                camera_open = True
-
-                try:
-                    cap = cv2.VideoCapture(ip_cam_url)
-                    if not cap.isOpened():
-                        result_queue.put(("error", "No se pudo acceder a la cámara del celular. Reintentalo..."))
-                        cap.release()
-                        cv2.destroyAllWindows()
-                        return
-
-                    while camera_open:
-                        ret, frame = cap.read()
-                        if not ret:
-                            result_queue.put(("error", "Error al obtener el cuadro de la cámara. Reintentando conexión..."))
-                            break  # Sale del bucle interno para reintentar la conexión
-
-                        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                        qr_codes = decode(gray_frame)
-
-                        for qr in qr_codes:
-                            qr_data = qr.data.decode('utf-8')
-                            flag = self.es_codigo_valido(qr_data)
-                            if flag == "valido":
-                                result_queue.put(("info", f"Código QR {flag}: \n{qr_data}"))
-                                result_queue.put(("data", qr_data))
-                                camera_open = False
-                                cap.release()
-                                cv2.destroyAllWindows()
-                                return
-                            elif flag == "invalido":
-                                continue
-
-                        cv2.imshow("Escaneando QR con celular", frame)
-
-                        if cv2.waitKey(1) & 0xFF == ord('q'):
-                            camera_open = False
-                            cap.release()
-                            cv2.destroyAllWindows()
-                            result_queue.put(("close", None))
-                            return
-
-                        # Verificar si la ventana fue cerrada
-                        if cv2.getWindowProperty("Escaneando QR con celular", cv2.WND_PROP_VISIBLE) < 1:
-                            camera_open = False
-                            cap.release()
-                            cv2.destroyAllWindows()
-                            result_queue.put(("close", None))
-                            return
-
-                    cap.release()
-                    cv2.destroyAllWindows()
-                except Exception as e:
-                    result_queue.put(("error", f"Se produjo un error inesperado: {str(e)}"))
-                    cap.release()
-                    cv2.destroyAllWindows()
-
-            result_queue = queue.Queue()
-            capture_thread = threading.Thread(target=run_capture, args=(result_queue,))
-            capture_thread.start()
-
-            while True:
-                try:
-                    msg_type, msg_content = result_queue.get(timeout=1)
-                    if msg_type == "info":
-                        messagebox.showinfo("Información", msg_content)
-                    elif msg_type == "error":
-                        messagebox.showerror("Error", msg_content)
-                        return None
-                    elif msg_type == "data":
-                        return msg_content
-                    elif msg_type == "close":
-                        return None
-                except queue.Empty:
-                    continue
-        except Exception as e:
-            result_queue.put(("error", f"Se produjo un error inesperado: {str(e)}"))
-            cv2.destroyAllWindows()
-
-    def es_codigo_valido(self, qr_data):
-        # Normalizar el texto eliminando espacios extra y líneas vacías
-        qr_data_limpio = "\n".join([line.strip() for line in qr_data.splitlines() if line.strip()])
-        
-        print("Texto procesado antes de la validación:")
-        print(repr(qr_data_limpio))  # Muestra caracteres invisibles como '\n'
-        
-        # Expresión regular corregida
-        patron_valido = r'^NS:[A-Za-z0-9\-.]+\nIP:\d{1,3}(\.\d{1,3}){3}\nSN:[A-Za-z0-9]+\nMODEL:[A-Za-z0-9\s]+$'
-        
-        # Validar el código QR contra el patrón
-        if re.match(patron_valido, qr_data_limpio, re.MULTILINE):
-            return "valido"
-        else:
-            return "invalido"'''
-
     # --- GLPI API ---
 
     def obtener_token_sesion(self):
